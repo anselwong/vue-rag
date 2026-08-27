@@ -1,0 +1,24 @@
+{
+  "name": "vue-rag",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc -b && vite build",
+    "type-check": "vue-tsc -b",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@vitejs/plugin-vue": "latest",
+    "@lucide/vue": "latest",
+    "vite": "latest",
+    "vue": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "typescript": "~5.9.3",
+    "vue-tsc": "latest"
+  },
+  "packageManager": "pnpm@11.5.0"
+}
