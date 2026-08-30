@@ -11,12 +11,31 @@ export class ApiError extends Error {
 }
 
 export async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
+  return request<T>(path, { method: 'GET', signal })
+}
+
+export async function post<T>(path: string, body?: unknown): Promise<T> {
+  return request<T>(path, {
+    method: 'POST',
+    body: body instanceof FormData ? body : JSON.stringify(body),
+  })
+}
+
+export async function remove(path: string): Promise<void> {
+  await request(path, { method: 'DELETE' })
+}
+
+async function request<T>(path: string, init: RequestInit): Promise<T> {
   let response: Response
 
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
-      headers: { Accept: 'application/json' },
-      signal,
+      ...init,
+      headers: {
+        Accept: 'application/json',
+        ...(init.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
+        ...init.headers,
+      },
     })
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') {
@@ -29,6 +48,6 @@ export async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
     throw new ApiError(`请求失败（HTTP ${response.status}）`, response.status)
   }
 
+  if (response.status === 204) return undefined as T
   return response.json() as Promise<T>
 }
-
