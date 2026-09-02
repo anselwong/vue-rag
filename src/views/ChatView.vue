@@ -5,13 +5,22 @@ import {
   FileText,
   LoaderCircle,
   MessageSquarePlus,
+  Pencil,
   Send,
   Sparkles,
+  Trash2,
   UserRound,
 } from '@lucide/vue'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 
-import { listChatSessions, sendChatMessage } from '../services/rag'
+import BaseModal from '../components/BaseModal.vue'
+import {
+  deleteChatSession,
+  listChatSessions,
+  renameChatSession,
+  streamChatMessage,
+  uniqueCitations,
+} from '../services/rag'
 import { useRagStore } from '../stores/rag'
 import type { ChatMessage, ChatSession, Citation } from '../types/api'
 
@@ -20,7 +29,15 @@ const sessions = ref<ChatSession[]>([])
 const activeSessionId = ref('')
 const draft = ref('')
 const sending = ref(false)
+const sendError = ref('')
 const activeCitation = ref<Citation | null>(null)
+const contextMenu = ref<{ x: number; y: number; session: ChatSession } | null>(
+  null,
+)
+const renameTarget = ref<ChatSession | null>(null)
+const renameOpen = ref(false)
+const renameValue = ref('')
+const actionError = ref('')
 const messageArea = ref<HTMLElement | null>(null)
 const activeSession = computed(() =>
   sessions.value.find((item) => item.id === activeSessionId.value),
@@ -43,6 +60,62 @@ function newSession() {
   activeSessionId.value = session.id
 }
 
+function openContextMenu(event: MouseEvent, session: ChatSession) {
+  event.preventDefault()
+  // 菜单定位使用 fixed 坐标，跟随鼠标且不影响会话列表自身的布局滚动。
+  contextMenu.value = {
+    x: Math.min(event.clientX, window.innerWidth - 170),
+    y: Math.min(event.clientY, window.innerHeight - 90),
+    session,
+  }
+}
+
+function closeContextMenu() {
+  contextMenu.value = null
+}
+
+function beginRename() {
+  if (!contextMenu.value) return
+  renameTarget.value = contextMenu.value.session
+  renameValue.value = contextMenu.value.session.title
+  renameOpen.value = true
+  closeContextMenu()
+}
+
+async function saveRename() {
+  const session = renameTarget.value
+  const title = renameValue.value.trim()
+  if (!session || !title) return
+  actionError.value = ''
+  try {
+    if (!session.id.startsWith('session-'))
+      await renameChatSession(store.selectedKnowledgeBaseId, session.id, title)
+    session.title = title
+    renameOpen.value = false
+    renameTarget.value = null
+  } catch (error) {
+    actionError.value = error instanceof Error ? error.message : '重命名失败'
+  }
+}
+
+async function removeSession() {
+  const target = contextMenu.value?.session
+  closeContextMenu()
+  if (!target) return
+  if (!window.confirm(`确定删除会话“${target.title}”吗？`)) return
+  actionError.value = ''
+  try {
+    if (!target.id.startsWith('session-'))
+      await deleteChatSession(store.selectedKnowledgeBaseId, target.id)
+    const index = sessions.value.findIndex((item) => item.id === target.id)
+    if (index >= 0) sessions.value.splice(index, 1)
+    if (activeSessionId.value === target.id)
+      activeSessionId.value = sessions.value[0]?.id ?? ''
+  } catch (error) {
+    actionError.value = error instanceof Error ? error.message : '删除失败'
+  }
+}
+
 async function send() {
   const content = draft.value.trim()
   if (!content || sending.value) return
@@ -61,15 +134,49 @@ async function send() {
   if (session.title === '新对话') session.title = content.slice(0, 20)
   draft.value = ''
   sending.value = true
+  sendError.value = ''
   await nextTick()
   messageArea.value?.scrollTo({
     top: messageArea.value.scrollHeight,
     behavior: 'smooth',
   })
   try {
-    session.messages.push(
-      await sendChatMessage(store.selectedKnowledgeBaseId, content),
+    // 流式接口先返回会话 ID，再持续更新同一条助手消息，避免等待完整答案。
+    const assistantMessage: ChatMessage = {
+      id: `message-${Date.now()}`,
+      role: 'assistant',
+      content: '',
+      createdAt: now,
+      citations: [],
+    }
+    session.messages.push(assistantMessage)
+    // 从响应式数组重新取对象；直接修改 push 前的普通对象引用不会触发 Vue 更新。
+    const assistant = session.messages[session.messages.length - 1]
+    await streamChatMessage(
+      store.selectedKnowledgeBaseId,
+      content,
+      session.id.startsWith('session-') ? undefined : session.id,
+      (event, data) => {
+        if (
+          event === 'meta' &&
+          data.session_id &&
+          session.id.startsWith('session-')
+        ) {
+          session.id = data.session_id
+          activeSessionId.value = data.session_id
+        } else if (event === 'delta') {
+          // 不做定时器或 sleep，收到后端分片后立即交给 Vue 渲染。
+          assistant.content += data.content ?? ''
+        } else if (event === 'done') {
+          assistant.citations = uniqueCitations(data.citations ?? [])
+        } else if (event === 'error') {
+          throw new Error(data.message ?? '流式问答失败')
+        }
+      },
     )
+  } catch (error) {
+    sendError.value =
+      error instanceof Error ? error.message : '问答请求失败，请稍后重试'
   } finally {
     sending.value = false
   }
@@ -80,7 +187,10 @@ async function send() {
   })
 }
 
-onMounted(load)
+onMounted(() => {
+  load()
+  window.addEventListener('click', closeContextMenu)
+})
 watch(() => store.selectedKnowledgeBaseId, load)
 </script>
 
@@ -97,10 +207,24 @@ watch(() => store.selectedKnowledgeBaseId, load)
         :class="['session-item', { active: session.id === activeSessionId }]"
         type="button"
         @click="activeSessionId = session.id"
+        @contextmenu="openContextMenu($event, session)"
       >
         <span>{{ session.title }}</span
         ><small>{{ session.updatedAt }}</small>
       </button>
+      <div
+        v-if="contextMenu"
+        class="session-context-menu"
+        :style="{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }"
+        @click.stop
+      >
+        <button type="button" @click="beginRename">
+          <Pencil :size="14" />重命名
+        </button>
+        <button type="button" class="danger" @click="removeSession">
+          <Trash2 :size="14" />删除会话
+        </button>
+      </div>
     </aside>
 
     <section class="conversation">
@@ -179,8 +303,38 @@ watch(() => store.selectedKnowledgeBaseId, load)
         >
           <Send :size="18" /></button
         ><small>回答内容由 AI 生成，请结合引用原文判断</small>
+        <p v-if="sendError" class="form-error chat-error">{{ sendError }}</p>
       </footer>
     </section>
+
+    <BaseModal
+      :open="renameOpen"
+      title="重命名会话"
+      @close="renameOpen = false"
+    >
+      <form class="modal-form" @submit.prevent="saveRename">
+        <label
+          ><span>会话名称</span
+          ><input v-model="renameValue" maxlength="120" autofocus
+        /></label>
+        <p v-if="actionError" class="form-error">{{ actionError }}</p>
+        <footer>
+          <button
+            class="button secondary"
+            type="button"
+            @click="renameOpen = false"
+          >
+            取消</button
+          ><button
+            class="button primary"
+            type="submit"
+            :disabled="!renameValue.trim()"
+          >
+            保存
+          </button>
+        </footer>
+      </form>
+    </BaseModal>
 
     <aside v-if="activeCitation" class="citation-drawer">
       <header>

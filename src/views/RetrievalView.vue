@@ -8,7 +8,8 @@ import type { RetrievalOptions, RetrievalResult } from '../types/api'
 
 const store = useRagStore()
 const query = ref('如何减少知识库回答中的幻觉？')
-const options = ref<RetrievalOptions>({ topK: 3, scoreThreshold: 0.65, mode: 'hybrid' })
+// 真实语义向量的余弦分数通常低于演示 mock；0.35 先保证有候选，再由用户收紧阈值。
+const options = ref<RetrievalOptions>({ topK: 3, scoreThreshold: 0.35, mode: 'hybrid' })
 const results = ref<RetrievalResult[]>([])
 const searching = ref(false)
 const elapsed = ref(0)
@@ -44,4 +45,3 @@ async function search() {
     </section>
   </main>
 </template>
-

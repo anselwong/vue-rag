@@ -43,6 +43,7 @@ export interface Citation {
 
 export interface ChatMessage {
   id: string
+  sessionId?: string
   role: 'user' | 'assistant'
   content: string
   createdAt: string
@@ -74,4 +75,7 @@ export interface EvaluationCase {
   status: 'passed' | 'review' | 'pending'
   faithfulness: number | null
   retrievalScore: number | null
+  recallAtK?: number
+  mrr?: number
+  latencyMs?: number
 }

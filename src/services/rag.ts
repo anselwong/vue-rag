@@ -1,11 +1,12 @@
 import { mockDelay, mockDocuments, mockEvaluationCases, mockKnowledgeBases, mockRetrievalResults, mockSessions } from '../mock/data'
-import type { ChatMessage, ChatSession, DocumentDetail, EvaluationCase, KnowledgeBase, RagDocument, RetrievalOptions, RetrievalResult } from '../types/api'
-import { get, post, remove } from './http'
+import type { ChatMessage, ChatSession, Citation, DocumentDetail, EvaluationCase, KnowledgeBase, RagDocument, RetrievalOptions, RetrievalResult } from '../types/api'
+import { get, patch, post, remove } from './http'
 
 // 默认使用真实后端；只有显式设置 VITE_USE_MOCK=true 时才走本地演示数据。
 export const useMockApi = (import.meta.env.VITE_USE_MOCK ?? 'false') === 'true'
-// Day 4 只接通内容管理 API；AI 问答、检索和评测会在后续阶段接入后端。
-const useMockAiApi = true
+// 评测仍保留 mock；Day 7 聊天已切换真实后端。
+const useMockAiApi = false
+const useMockRetrievalApi = false
 
 function mapKnowledgeBase(item: any): KnowledgeBase {
   return { ...item, documentCount: item.documentCount ?? item.document_count, chunkCount: item.chunkCount ?? item.chunk_count, updatedAt: item.updatedAt ?? item.updated_at }
@@ -61,11 +62,43 @@ export async function deleteDocument(knowledgeBaseId: string, documentId: string
 }
 
 export async function listChatSessions(knowledgeBaseId: string): Promise<ChatSession[]> {
-  return useMockAiApi ? mockDelay(structuredClone(mockSessions), 240) : get(`/knowledge-bases/${knowledgeBaseId}/chat-sessions`)
+  if (useMockAiApi) return mockDelay(structuredClone(mockSessions), 240)
+  return get<any[]>(`/knowledge-bases/${knowledgeBaseId}/chat-sessions`).then((items) => items.map((item) => ({
+    id: item.id,
+    title: item.title,
+    updatedAt: item.updatedAt ?? item.updated_at,
+    messages: (item.messages ?? []).map((message: any) => ({
+      id: message.id,
+      role: message.role,
+      content: message.content,
+      createdAt: message.createdAt ?? message.created_at,
+      citations: uniqueCitations(message.citations ?? []),
+    })),
+  })))
 }
 
-export async function sendChatMessage(knowledgeBaseId: string, message: string): Promise<ChatMessage> {
-  if (!useMockAiApi) return post(`/knowledge-bases/${knowledgeBaseId}/chat`, { message })
+export async function renameChatSession(knowledgeBaseId: string, sessionId: string, title: string): Promise<void> {
+  if (useMockAiApi) return
+  await patch(`/knowledge-bases/${knowledgeBaseId}/chat-sessions/${sessionId}`, { title })
+}
+
+export async function deleteChatSession(knowledgeBaseId: string, sessionId: string): Promise<void> {
+  if (useMockAiApi) return
+  await remove(`/knowledge-bases/${knowledgeBaseId}/chat-sessions/${sessionId}`)
+}
+
+export async function sendChatMessage(knowledgeBaseId: string, message: string, sessionId?: string): Promise<ChatMessage> {
+  if (!useMockAiApi) {
+    return post<any>(`/knowledge-bases/${knowledgeBaseId}/chat`, { message, session_id: sessionId }).then((item) => ({
+      id: item.id,
+      sessionId: item.session_id ?? item.sessionId,
+      role: item.role,
+      content: item.content,
+      createdAt: item.createdAt ?? new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+      // 一个文档可能被切成多个 chunk；回答仍使用全部 chunk，但 UI 按文档+页码去重，避免重复卡片。
+      citations: uniqueCitations(item.citations ?? []),
+    }))
+  }
   return mockDelay({
     id: `message-${Date.now()}`,
     role: 'assistant',
@@ -75,16 +108,67 @@ export async function sendChatMessage(knowledgeBaseId: string, message: string):
   }, 900)
 }
 
+/** SSE 增量消费：每收到一个 data 片段就回调，避免等待完整回答才刷新界面。 */
+export async function streamChatMessage(knowledgeBaseId: string, message: string, sessionId: string | undefined, onEvent: (event: string, data: any) => void): Promise<void> {
+  const base = import.meta.env.VITE_API_BASE_URL ?? '/api/v1'
+  const response = await fetch(`${base}/knowledge-bases/${knowledgeBaseId}/chat/stream`, {
+    method: 'POST', headers: { Accept: 'text/event-stream', 'Content-Type': 'application/json' }, body: JSON.stringify({ message, session_id: sessionId }),
+  })
+  if (!response.ok || !response.body) throw new Error(`请求失败（HTTP ${response.status}）`)
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  while (true) {
+    const { value, done } = await reader.read()
+    buffer += decoder.decode(value ?? new Uint8Array(), { stream: !done })
+    const events = buffer.split('\n\n')
+    buffer = events.pop() ?? ''
+    events.forEach((block) => {
+      // SSE 规范允许 LF 或 CRLF；trim 可避免事件名携带尾部的 \r 导致分支匹配失败。
+      const type = block.split('\n').find((line) => line.startsWith('event: '))?.slice(7).trim() ?? 'message'
+      const line = block.split('\n').find((value) => value.startsWith('data: '))
+      if (line) {
+        try { onEvent(type, JSON.parse(line.slice(6))) } catch { onEvent(type, { content: line.slice(6) }) }
+      }
+    })
+    if (done) break
+  }
+}
+
+export function uniqueCitations(items: any[]): Citation[] {
+  const seen = new Set<string>()
+  return items
+    .map((citation) => ({ ...citation, documentName: citation.documentName ?? citation.document_name }))
+    .filter((citation) => {
+      const key = `${citation.documentName}:${citation.page}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+}
+
 export async function searchKnowledgeBase(knowledgeBaseId: string, query: string, options: RetrievalOptions): Promise<RetrievalResult[]> {
-  if (!useMockAiApi) return post(`/knowledge-bases/${knowledgeBaseId}/retrieval/search`, { query, ...options })
+  if (!useMockRetrievalApi) {
+    return post<any[]>(`/knowledge-bases/${knowledgeBaseId}/retrieval/search`, { query, top_k: options.topK, score_threshold: options.scoreThreshold, mode: options.mode }).then((items) => items.map((item) => ({ ...item, documentName: item.documentName ?? item.document_name })))
+  }
   return mockDelay(structuredClone(mockRetrievalResults.slice(0, options.topK)), 620)
 }
 
 export async function listEvaluationCases(knowledgeBaseId: string): Promise<EvaluationCase[]> {
-  return useMockAiApi ? mockDelay(structuredClone(mockEvaluationCases), 260) : get(`/knowledge-bases/${knowledgeBaseId}/evaluations`)
+  if (useMockAiApi) return mockDelay(structuredClone(mockEvaluationCases), 260)
+  return get<any[]>(`/knowledge-bases/${knowledgeBaseId}/evaluations`).then((items) => items.map(mapEvaluationCase))
 }
 
 export async function runEvaluation(knowledgeBaseId: string): Promise<EvaluationCase[]> {
-  if (!useMockAiApi) return post(`/knowledge-bases/${knowledgeBaseId}/evaluations/run`)
+  if (!useMockAiApi) return post<any[]>(`/knowledge-bases/${knowledgeBaseId}/evaluations/run`).then((items) => items.map(mapEvaluationCase))
   return mockDelay(structuredClone(mockEvaluationCases.map((item) => item.status === 'pending' ? { ...item, status: 'passed' as const, faithfulness: 0.89, retrievalScore: 0.86 } : item)), 1200)
+}
+
+export async function generateEvaluationCases(knowledgeBaseId: string): Promise<EvaluationCase[]> {
+  if (useMockAiApi) return mockDelay(structuredClone(mockEvaluationCases), 300)
+  return post<any[]>(`/knowledge-bases/${knowledgeBaseId}/evaluations/generate`).then((items) => items.map(mapEvaluationCase))
+}
+
+function mapEvaluationCase(item: any): EvaluationCase {
+  return { ...item, expectedSource: item.expectedSource ?? item.expected_source, retrievalScore: item.retrievalScore ?? item.retrieval_score, faithfulness: item.faithfulness ?? null, recallAtK: item.recallAtK ?? item.recall_at_k, mrr: item.mrr, latencyMs: item.latencyMs ?? item.latency_ms }
 }

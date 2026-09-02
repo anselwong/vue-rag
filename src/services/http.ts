@@ -21,6 +21,13 @@ export async function post<T>(path: string, body?: unknown): Promise<T> {
   })
 }
 
+export async function patch<T>(path: string, body?: unknown): Promise<T> {
+  return request<T>(path, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  })
+}
+
 export async function remove(path: string): Promise<void> {
   await request(path, { method: 'DELETE' })
 }

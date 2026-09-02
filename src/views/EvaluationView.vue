@@ -2,13 +2,14 @@
 import { CheckCircle2, ClipboardCheck, Clock3, LoaderCircle, Play, TriangleAlert } from '@lucide/vue'
 import { computed, onMounted, ref, watch } from 'vue'
 
-import { listEvaluationCases, runEvaluation } from '../services/rag'
+import { generateEvaluationCases, listEvaluationCases, runEvaluation } from '../services/rag'
 import { useRagStore } from '../stores/rag'
 import type { EvaluationCase } from '../types/api'
 
 const store = useRagStore()
 const cases = ref<EvaluationCase[]>([])
 const running = ref(false)
+const generating = ref(false)
 const passCount = computed(() => cases.value.filter((item) => item.status === 'passed').length)
 const averageFaithfulness = computed(() => {
   const values = cases.value.flatMap((item) => item.faithfulness === null ? [] : [item.faithfulness])
@@ -18,20 +19,30 @@ const averageRetrieval = computed(() => {
   const values = cases.value.flatMap((item) => item.retrievalScore === null ? [] : [item.retrievalScore])
   return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0
 })
+const averageRecall = computed(() => cases.value.length ? cases.value.reduce((sum, item) => sum + (item.recallAtK ?? 0), 0) / cases.value.length : 0)
+const averageMrr = computed(() => cases.value.length ? cases.value.reduce((sum, item) => sum + (item.mrr ?? 0), 0) / cases.value.length : 0)
+const averageLatency = computed(() => {
+  const values = cases.value.flatMap((item) => item.latencyMs === undefined ? [] : [item.latencyMs])
+  return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0
+})
 
 async function load() { if (store.selectedKnowledgeBaseId) cases.value = await listEvaluationCases(store.selectedKnowledgeBaseId) }
 async function run() { running.value = true; try { cases.value = await runEvaluation(store.selectedKnowledgeBaseId) } finally { running.value = false } }
+async function generate() { generating.value = true; try { cases.value = await generateEvaluationCases(store.selectedKnowledgeBaseId) } finally { generating.value = false } }
 onMounted(load)
 watch(() => store.selectedKnowledgeBaseId, load)
 </script>
 
 <template>
   <main class="page-content">
-    <section class="page-toolbar evaluation-toolbar"><div><h2>基准测试集</h2><p>用固定问题持续衡量检索与回答质量。</p></div><button class="button primary" type="button" :disabled="running" @click="run"><LoaderCircle v-if="running" class="spinning" :size="17" /><Play v-else :size="16" />{{ running ? '评测中' : '运行评测' }}</button></section>
+    <section class="page-toolbar evaluation-toolbar"><div><h2>基准测试集</h2><p>用固定问题持续衡量检索与回答质量。</p></div><div class="evaluation-actions"><button class="button secondary" type="button" :disabled="generating || running" @click="generate"><LoaderCircle v-if="generating" class="spinning" :size="17" /><ClipboardCheck v-else :size="16" />{{ generating ? '生成中' : '根据文档生成题集' }}</button><button class="button primary" type="button" :disabled="running || generating" @click="run"><LoaderCircle v-if="running" class="spinning" :size="17" /><Play v-else :size="16" />{{ running ? '评测中' : '运行评测' }}</button></div></section>
     <section class="evaluation-metrics">
       <article><span class="stat-icon green"><ClipboardCheck :size="19" /></span><div><small>通过率</small><strong>{{ cases.length ? Math.round(passCount / cases.length * 100) : 0 }}%</strong><p>{{ passCount }} / {{ cases.length }} 个问题</p></div></article>
       <article><span class="stat-icon blue"><CheckCircle2 :size="19" /></span><div><small>回答忠实度</small><strong>{{ Math.round(averageFaithfulness * 100) }}%</strong><p>答案受原文支持程度</p></div></article>
       <article><span class="stat-icon amber"><ClipboardCheck :size="19" /></span><div><small>检索命中</small><strong>{{ Math.round(averageRetrieval * 100) }}%</strong><p>正确来源召回表现</p></div></article>
+      <article><span class="stat-icon green"><ClipboardCheck :size="19" /></span><div><small>Recall@K</small><strong>{{ Math.round(averageRecall * 100) }}%</strong><p>前 K 条包含正确来源</p></div></article>
+      <article><span class="stat-icon blue"><CheckCircle2 :size="19" /></span><div><small>MRR</small><strong>{{ Math.round(averageMrr * 100) }}%</strong><p>正确结果平均排名</p></div></article>
+      <article><span class="stat-icon amber"><Clock3 :size="19" /></span><div><small>平均延迟</small><strong>{{ Math.round(averageLatency) }}ms</strong><p>单题检索耗时</p></div></article>
     </section>
     <section class="table-panel evaluation-table-panel">
       <header><div><h2>评测明细</h2><p>当前知识库 · {{ store.selectedKnowledgeBase?.name }}</p></div></header>

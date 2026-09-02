@@ -63,6 +63,13 @@ h3 {
 }
 .app-main {
   min-width: 0;
+  min-height: 0;
+}
+.app-main:has(.chat-layout) {
+  height: 100vh;
+  display: grid;
+  grid-template-rows: 82px minmax(0, 1fr);
+  overflow: hidden;
 }
 .sidebar {
   position: sticky;
@@ -922,6 +929,7 @@ h3 {
   font-weight: 700;
 }
 .preview-empty { color: #8a9592; font-size: 12px; }
+.chat-error { margin: 4px 0 0; }
 .preview-page {
   padding: 16px 0;
   border-bottom: 1px solid #e7ecea;
@@ -947,10 +955,12 @@ h3 {
 }
 
 .chat-layout {
-  height: calc(100vh - 82px);
+  height: auto;
+  min-height: 0;
   display: grid;
   grid-template-columns: 214px minmax(0, 1fr);
   background: #fff;
+  overflow: hidden;
 }
 .session-panel {
   padding: 18px 12px;
@@ -991,10 +1001,40 @@ h3 {
   color: #8b9693;
   font-size: 8px;
 }
+.session-context-menu {
+  position: fixed;
+  z-index: 20;
+  min-width: 156px;
+  padding: 5px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  box-shadow: 0 10px 28px rgb(25 50 44 / 16%);
+}
+.session-context-menu button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  color: #344640;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.session-context-menu button:hover { background: #eef5f2; }
+.session-context-menu button.danger { color: #b34e4e; }
+.session-context-menu button.danger:hover { background: #fff1f1; }
 .conversation {
   min-width: 0;
+  min-height: 0;
   display: grid;
   grid-template-rows: 58px minmax(0, 1fr) auto;
+  overflow: hidden;
 }
 .conversation-header {
   display: flex;
@@ -1076,6 +1116,8 @@ h3 {
   font-size: 11px;
   line-height: 1.85;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .message-body.typing {
   display: flex;
@@ -1092,6 +1134,7 @@ h3 {
 .citation-list button {
   width: fit-content;
   max-width: 100%;
+  min-width: 0;
   min-height: 29px;
   display: flex;
   align-items: center;
@@ -1102,6 +1145,13 @@ h3 {
   border: 1px solid #dfe7e4;
   border-radius: 5px;
   font-size: 8px;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.citation-list button svg {
+  flex: 0 0 auto;
 }
 .citation-list button:hover {
   color: var(--green);
@@ -1381,6 +1431,11 @@ h3 {
   margin: 0;
   color: #7f8b88;
   font-size: 10px;
+}
+.evaluation-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 .evaluation-table .table-row {
   grid-template-columns:
@@ -1896,6 +1951,11 @@ h3 {
   .chat-layout {
     height: calc(100vh - 132px);
     grid-template-columns: 1fr;
+  }
+  .app-main:has(.chat-layout) {
+    height: auto;
+    display: block;
+    overflow: visible;
   }
   .session-panel {
     display: none;
