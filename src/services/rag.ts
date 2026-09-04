@@ -1,6 +1,7 @@
 import { mockDelay, mockDocuments, mockEvaluationCases, mockKnowledgeBases, mockRetrievalResults, mockSessions } from '../mock/data'
 import type { ChatMessage, ChatSession, Citation, DocumentDetail, EvaluationCase, KnowledgeBase, RagDocument, RetrievalOptions, RetrievalResult } from '../types/api'
 import { get, patch, post, remove } from './http'
+import { formatDateTime } from '../utils/datetime'
 
 // 默认使用真实后端；只有显式设置 VITE_USE_MOCK=true 时才走本地演示数据。
 export const useMockApi = (import.meta.env.VITE_USE_MOCK ?? 'false') === 'true'
@@ -94,7 +95,7 @@ export async function sendChatMessage(knowledgeBaseId: string, message: string, 
       sessionId: item.session_id ?? item.sessionId,
       role: item.role,
       content: item.content,
-      createdAt: item.createdAt ?? new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+      createdAt: item.createdAt ?? new Date().toLocaleString('zh-CN', { hour12: false }),
       // 一个文档可能被切成多个 chunk；回答仍使用全部 chunk，但 UI 按文档+页码去重，避免重复卡片。
       citations: uniqueCitations(item.citations ?? []),
     }))
@@ -102,7 +103,7 @@ export async function sendChatMessage(knowledgeBaseId: string, message: string, 
   return mockDelay({
     id: `message-${Date.now()}`,
     role: 'assistant',
-    createdAt: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+    createdAt: new Date().toLocaleString('zh-CN', { hour12: false }),
     content: '基于当前知识库，降低幻觉的关键是保证检索证据质量，并约束模型只依据检索上下文回答。建议同时设置相似度阈值、保留可追溯引用，并在证据不足时明确拒答。',
     citations: structuredClone(mockRetrievalResults.slice(0, 2)),
   }, 900)

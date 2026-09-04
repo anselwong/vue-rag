@@ -23,6 +23,7 @@ import {
 } from '../services/rag'
 import { useRagStore } from '../stores/rag'
 import type { ChatMessage, ChatSession, Citation } from '../types/api'
+import { formatDateTime } from '../utils/datetime'
 
 const store = useRagStore()
 const sessions = ref<ChatSession[]>([])
@@ -121,10 +122,7 @@ async function send() {
   if (!content || sending.value) return
   if (!activeSession.value) newSession()
   const session = activeSession.value!
-  const now = new Date().toLocaleTimeString('zh-CN', {
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  const now = formatDateTime(new Date())
   session.messages.push({
     id: `message-${Date.now()}`,
     role: 'user',
@@ -210,7 +208,7 @@ watch(() => store.selectedKnowledgeBaseId, load)
         @contextmenu="openContextMenu($event, session)"
       >
         <span>{{ session.title }}</span
-        ><small>{{ session.updatedAt }}</small>
+        ><small>{{ formatDateTime(session.updatedAt) }}</small>
       </button>
       <div
         v-if="contextMenu"
@@ -263,7 +261,7 @@ watch(() => store.selectedKnowledgeBaseId, load)
               <strong>{{
                 message.role === 'user' ? '你' : '知识库助手'
               }}</strong
-              ><time>{{ message.createdAt }}</time>
+              ><time>{{ formatDateTime(message.createdAt) }}</time>
             </div>
             <p>{{ message.content }}</p>
             <div v-if="message.citations?.length" class="citation-list">

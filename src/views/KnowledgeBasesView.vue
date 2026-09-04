@@ -4,6 +4,7 @@ import { computed, ref } from 'vue'
 
 import BaseModal from '../components/BaseModal.vue'
 import { useRagStore } from '../stores/rag'
+import { formatDateTime } from '../utils/datetime'
 
 const store = useRagStore()
 const query = ref('')
@@ -34,7 +35,7 @@ async function save() {
       <article v-for="item in filtered" :key="item.id" class="knowledge-card" @click="store.selectedKnowledgeBaseId = item.id">
         <header><span class="large-kb-avatar" :style="{ background: item.color }"><Database :size="21" /></span><button class="icon-button quiet" type="button" title="更多操作"><MoreHorizontal :size="18" /></button></header>
         <h2>{{ item.name }}</h2><p>{{ item.description }}</p>
-        <dl><div><dt>文档</dt><dd>{{ item.documentCount }}</dd></div><div><dt>切片</dt><dd>{{ item.chunkCount }}</dd></div><div><dt>更新</dt><dd>{{ item.updatedAt }}</dd></div></dl>
+        <dl><div><dt>文档</dt><dd>{{ item.documentCount }}</dd></div><div><dt>切片</dt><dd>{{ item.chunkCount }}</dd></div><div><dt>更新</dt><dd>{{ formatDateTime(item.updatedAt) }}</dd></div></dl>
         <RouterLink class="card-action" to="/documents"><FileText :size="16" />管理文档 <ArrowRight :size="15" /></RouterLink>
       </article>
     </section>

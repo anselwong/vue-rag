@@ -16,6 +16,7 @@ import BaseModal from '../components/BaseModal.vue'
 import { deleteDocument, getDocumentDetail, listDocuments, uploadDocument } from '../services/rag'
 import { useRagStore } from '../stores/rag'
 import type { DocumentDetail, RagDocument } from '../types/api'
+import { formatDateTime } from '../utils/datetime'
 
 const store = useRagStore()
 const documents = ref<RagDocument[]>([])
@@ -131,7 +132,7 @@ watch(() => store.selectedKnowledgeBaseId, load)
               }}</span
             ></span
           >
-          <span>{{ document.createdAt }}</span>
+          <span>{{ formatDateTime(document.createdAt) }}</span>
           <span class="document-actions"
             ><button
               class="icon-button quiet"

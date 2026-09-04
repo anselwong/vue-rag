@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ArrowRight, CheckCircle2, CircleEllipsis, Clock3, FileText, Layers3, MessageSquareText } from '@lucide/vue'
 import { useRagStore } from '../stores/rag'
+import { formatDateTime } from '../utils/datetime'
 
 const store = useRagStore()
 </script>
@@ -27,7 +28,7 @@ const store = useRagStore()
             <span class="kb-avatar" :style="{ background: item.color }">{{ item.name.slice(0, 1) }}</span>
             <span class="kb-summary"><strong>{{ item.name }}</strong><small>{{ item.documentCount }} 篇文档 · {{ item.chunkCount }} 个切片</small></span>
             <span class="index-ready"><CheckCircle2 :size="14" />已索引</span>
-            <time>{{ item.updatedAt }}</time>
+            <time>{{ formatDateTime(item.updatedAt) }}</time>
           </button>
         </div>
       </section>
