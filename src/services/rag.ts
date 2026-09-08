@@ -1,5 +1,5 @@
 import { mockDelay, mockDocuments, mockEvaluationCases, mockKnowledgeBases, mockRetrievalResults, mockSessions } from '../mock/data'
-import type { ChatMessage, ChatSession, Citation, DocumentDetail, EvaluationCase, KnowledgeBase, RagDocument, RetrievalOptions, RetrievalResult } from '../types/api'
+import type { ChatMessage, ChatSession, Citation, DocumentDetail, EvaluationCase, KnowledgeBase, RagDocument, RetrievalOptions, RetrievalResult, SweepConfig, SweepResponse, SweepResultRow, TokenUsage } from '../types/api'
 import { get, patch, post, remove } from './http'
 import { formatDateTime } from '../utils/datetime'
 
@@ -23,6 +23,16 @@ function mapDocumentDetail(item: any): DocumentDetail {
     pages: (item.pages ?? []).map((page: any) => ({ documentId: page.documentId ?? page.document_id, page: page.page, text: page.text })),
     chunks: (item.chunks ?? []).map((chunk: any) => ({ id: chunk.id, documentId: chunk.documentId ?? chunk.document_id, page: chunk.page, content: chunk.content, tokenCount: chunk.tokenCount ?? chunk.token_count })),
   }
+}
+
+/** 将普通 JSON 与 SSE 返回的 snake_case usage 统一为前端消息字段。 */
+export function mapTokenUsage(item: any): TokenUsage | null {
+  if (!item) return null
+  const promptTokens = item.promptTokens ?? item.prompt_tokens
+  const completionTokens = item.completionTokens ?? item.completion_tokens
+  const totalTokens = item.totalTokens ?? item.total_tokens
+  if (promptTokens === undefined || completionTokens === undefined || totalTokens === undefined) return null
+  return { promptTokens, completionTokens, totalTokens }
 }
 
 export async function listKnowledgeBases(): Promise<KnowledgeBase[]> {
@@ -74,6 +84,7 @@ export async function listChatSessions(knowledgeBaseId: string): Promise<ChatSes
       content: message.content,
       createdAt: message.createdAt ?? message.created_at,
       citations: uniqueCitations(message.citations ?? []),
+      usage: mapTokenUsage(message.usage),
     })),
   })))
 }
@@ -98,6 +109,7 @@ export async function sendChatMessage(knowledgeBaseId: string, message: string, 
       createdAt: item.createdAt ?? new Date().toLocaleString('zh-CN', { hour12: false }),
       // 一个文档可能被切成多个 chunk；回答仍使用全部 chunk，但 UI 按文档+页码去重，避免重复卡片。
       citations: uniqueCitations(item.citations ?? []),
+      usage: mapTokenUsage(item.usage),
     }))
   }
   return mockDelay({
@@ -168,6 +180,29 @@ export async function runEvaluation(knowledgeBaseId: string): Promise<Evaluation
 export async function generateEvaluationCases(knowledgeBaseId: string): Promise<EvaluationCase[]> {
   if (useMockAiApi) return mockDelay(structuredClone(mockEvaluationCases), 300)
   return post<any[]>(`/knowledge-bases/${knowledgeBaseId}/evaluations/generate`).then((items) => items.map(mapEvaluationCase))
+}
+
+/** Day 13 参数扫描：一次跑多组检索配置对比召回质量；configs 为空时后端使用内置默认扫描集。 */
+export async function runEvaluationSweep(knowledgeBaseId: string, configs?: SweepConfig[]): Promise<SweepResponse> {
+  const payload = configs?.length
+    ? { configs: configs.map((item) => ({ mode: item.mode, vector_weight: item.vectorWeight, keyword_weight: item.keywordWeight, threshold: item.threshold, top_k: item.topK })) }
+    : {}
+  return post<any>(`/knowledge-bases/${knowledgeBaseId}/evaluations/sweep`, payload).then(mapSweepResponse)
+}
+
+function mapSweepRow(item: any): SweepResultRow {
+  return { ...item, vectorWeight: item.vectorWeight ?? item.vector_weight, keywordWeight: item.keywordWeight ?? item.keyword_weight, topK: item.topK ?? item.top_k, recallAtK: item.recallAtK ?? item.recall_at_k, avgLatencyMs: item.avgLatencyMs ?? item.avg_latency_ms, avgScore: item.avgScore ?? item.avg_score, minScore: item.minScore ?? item.min_score }
+}
+
+function mapSweepResponse(item: any): SweepResponse {
+  const advice = item.thresholdAdvice ?? item.threshold_advice ?? {}
+  return {
+    knowledgeBaseId: item.knowledgeBaseId ?? item.knowledge_base_id,
+    caseCount: item.caseCount ?? item.case_count,
+    results: (item.results ?? []).map(mapSweepRow),
+    best: item.best ? mapSweepRow(item.best) : null,
+    thresholdAdvice: { currentDefault: advice.currentDefault ?? advice.current_default ?? 0.35, safeUpperBound: advice.safeUpperBound ?? advice.safe_upper_bound ?? null, note: advice.note ?? '' },
+  }
 }
 
 function mapEvaluationCase(item: any): EvaluationCase {

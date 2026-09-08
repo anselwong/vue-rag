@@ -1,5 +1,21 @@
+<!--
+ * @Author: Ansel_Wong
+ * @Date: 2026-08-27 12:55:54
+ * @LastEditTime: 2026-09-08 09:38:46
+ * @LastEditors: Ansel_Wong
+ * @Description: 
+ * @FilePath: /vue-rag/src/components/AppSidebar.vue
+ * (#^.^#)
+-->
 <script setup lang="ts">
-import { BarChart3, BookOpen, Database, FileSearch, Files, MessageSquareText } from '@lucide/vue'
+import {
+  BarChart3,
+  BookOpen,
+  Database,
+  FileSearch,
+  Files,
+  MessageSquareText,
+} from '@lucide/vue'
 import { useMockApi } from '../services/rag'
 
 const navigation = [
@@ -16,16 +32,26 @@ const navigation = [
   <aside class="sidebar">
     <div class="brand">
       <span class="brand-mark"><BookOpen :size="20" /></span>
-      <span class="brand-copy"><strong>知屿 RAG</strong><small>Knowledge Studio</small></span>
+      <span class="brand-copy"><strong></strong><small>知识库</small></span>
     </div>
     <nav class="main-nav" aria-label="主导航">
-      <RouterLink v-for="item in navigation" :key="item.to" :to="item.to" class="nav-item">
+      <RouterLink
+        v-for="item in navigation"
+        :key="item.to"
+        :to="item.to"
+        class="nav-item"
+      >
         <component :is="item.icon" :size="18" /><span>{{ item.label }}</span>
       </RouterLink>
     </nav>
     <div class="sidebar-footer">
       <span class="mock-indicator" />
-      <span><strong>{{ useMockApi ? '演示模式' : 'API 已连接' }}</strong><small>{{ useMockApi ? 'Mock API 已启用' : 'FastAPI 内容服务' }}</small></span>
+      <span
+        ><strong>{{ useMockApi ? '演示模式' : 'API 已连接' }}</strong
+        ><small>{{
+          useMockApi ? 'Mock API 已启用' : 'FastAPI 内容服务'
+        }}</small></span
+      >
     </div>
   </aside>
 </template>

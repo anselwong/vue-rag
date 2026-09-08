@@ -41,6 +41,13 @@ export interface Citation {
   score: number
 }
 
+/** 模型 API 返回的真实用量；缺失表示供应商未在该次响应中提供 usage。 */
+export interface TokenUsage {
+  promptTokens: number
+  completionTokens: number
+  totalTokens: number
+}
+
 export interface ChatMessage {
   id: string
   sessionId?: string
@@ -48,6 +55,7 @@ export interface ChatMessage {
   content: string
   createdAt: string
   citations?: Citation[]
+  usage?: TokenUsage | null
 }
 
 export interface ChatSession {
@@ -78,4 +86,34 @@ export interface EvaluationCase {
   recallAtK?: number
   mrr?: number
   latencyMs?: number
+}
+
+/** Day 13 评测扫描：单组检索配置（模式 + 融合权重 + 阈值 + topK）。 */
+export interface SweepConfig {
+  mode: 'vector' | 'hybrid'
+  vectorWeight: number
+  keywordWeight: number
+  threshold: number
+  topK: number
+}
+
+/** 单组配置的聚合指标（后端已按 Recall@K 降序排列）。 */
+export interface SweepResultRow extends SweepConfig {
+  recallAtK: number
+  mrr: number
+  avgLatencyMs: number
+  avgScore: number | null
+  minScore: number | null
+}
+
+export interface SweepResponse {
+  knowledgeBaseId: string
+  caseCount: number
+  results: SweepResultRow[]
+  best: SweepResultRow | null
+  thresholdAdvice: {
+    currentDefault: number
+    safeUpperBound: number | null
+    note: string
+  }
 }

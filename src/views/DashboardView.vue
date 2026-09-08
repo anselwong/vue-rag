@@ -16,7 +16,7 @@ const store = useRagStore()
     <section class="stats-grid" aria-label="数据概览">
       <article><span class="stat-icon green"><Layers3 :size="19" /></span><div><small>知识库</small><strong>{{ store.totals.knowledgeBases }}</strong><p>全部运行正常</p></div></article>
       <article><span class="stat-icon blue"><FileText :size="19" /></span><div><small>文档总数</small><strong>{{ store.totals.documents }}</strong><p>本周新增 3 篇</p></div></article>
-      <article><span class="stat-icon amber"><CircleEllipsis :size="19" /></span><div><small>向量切片</small><strong>{{ store.totals.chunks }}</strong><p>Chroma 索引就绪</p></div></article>
+      <article><span class="stat-icon amber"><CircleEllipsis :size="19" /></span><div><small>向量切片</small><strong>{{ store.totals.chunks }}</strong><p>pgvector 索引就绪</p></div></article>
       <article><span class="stat-icon gray"><MessageSquareText :size="19" /></span><div><small>本周问答</small><strong>47</strong><p>引用命中率 91%</p></div></article>
     </section>
 
@@ -44,4 +44,3 @@ const store = useRagStore()
     </div>
   </main>
 </template>
-

@@ -27,13 +27,13 @@ async function save() {
 <template>
   <main class="page-content">
     <section class="page-toolbar">
-      <label class="search-box"><Search :size="17" /><input v-model="query" placeholder="搜索知识库" /></label>
-      <button class="button primary" type="button" @click="modalOpen = true"><Plus :size="17" />新建知识库</button>
+      <el-input v-model="query" class="toolbar-search" placeholder="搜索知识库" :prefix-icon="Search" clearable />
+      <el-button type="primary" :icon="Plus" @click="modalOpen = true">新建知识库</el-button>
     </section>
 
     <section class="knowledge-grid">
       <article v-for="item in filtered" :key="item.id" class="knowledge-card" @click="store.selectedKnowledgeBaseId = item.id">
-        <header><span class="large-kb-avatar" :style="{ background: item.color }"><Database :size="21" /></span><button class="icon-button quiet" type="button" title="更多操作"><MoreHorizontal :size="18" /></button></header>
+        <header><span class="large-kb-avatar" :style="{ background: item.color }"><Database :size="21" /></span><el-button text circle :icon="MoreHorizontal" title="更多操作" @click.stop /></header>
         <h2>{{ item.name }}</h2><p>{{ item.description }}</p>
         <dl><div><dt>文档</dt><dd>{{ item.documentCount }}</dd></div><div><dt>切片</dt><dd>{{ item.chunkCount }}</dd></div><div><dt>更新</dt><dd>{{ formatDateTime(item.updatedAt) }}</dd></div></dl>
         <RouterLink class="card-action" to="/documents"><FileText :size="16" />管理文档 <ArrowRight :size="15" /></RouterLink>
@@ -44,11 +44,9 @@ async function save() {
 
     <BaseModal :open="modalOpen" title="新建知识库" @close="modalOpen = false">
       <form class="modal-form" @submit.prevent="save">
-        <label><span>名称</span><input v-model="form.name" required maxlength="30" placeholder="例如：产品文档库" /></label>
-        <label><span>描述</span><textarea v-model="form.description" rows="3" maxlength="120" placeholder="简要说明知识库的内容范围" /></label>
-        <footer><button class="button secondary" type="button" @click="modalOpen = false">取消</button><button class="button primary" type="submit" :disabled="saving">{{ saving ? '创建中' : '创建' }}</button></footer>
+        <el-form label-position="top"><el-form-item label="名称"><el-input v-model="form.name" required maxlength="30" placeholder="例如：产品文档库" /></el-form-item><el-form-item label="描述"><el-input v-model="form.description" type="textarea" :rows="3" maxlength="120" placeholder="简要说明知识库的内容范围" /></el-form-item></el-form>
+        <footer><el-button @click="modalOpen = false">取消</el-button><el-button type="primary" native-type="submit" :loading="saving">创建</el-button></footer>
       </form>
     </BaseModal>
   </main>
 </template>
-

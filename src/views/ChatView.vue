@@ -17,6 +17,7 @@ import BaseModal from '../components/BaseModal.vue'
 import {
   deleteChatSession,
   listChatSessions,
+  mapTokenUsage,
   renameChatSession,
   streamChatMessage,
   uniqueCitations,
@@ -167,6 +168,9 @@ async function send() {
           assistant.content += data.content ?? ''
         } else if (event === 'done') {
           assistant.citations = uniqueCitations(data.citations ?? [])
+          // SSE 直接透传后端 snake_case 字段，必须和普通 JSON 接口一样转换，
+          // 否则模板读取 promptTokens 等驼峰字段时只能得到 undefined。
+          assistant.usage = mapTokenUsage(data.usage)
         } else if (event === 'error') {
           throw new Error(data.message ?? '流式问答失败')
         }
@@ -264,6 +268,9 @@ watch(() => store.selectedKnowledgeBaseId, load)
               ><time>{{ formatDateTime(message.createdAt) }}</time>
             </div>
             <p>{{ message.content }}</p>
+            <div v-if="message.role === 'assistant' && message.usage" class="message-usage" title="由模型 API 返回的真实 Token 用量">
+              <span>本次用量</span><strong>{{ message.usage.totalTokens }}</strong><span>Token</span><i>输入 {{ message.usage.promptTokens }} · 输出 {{ message.usage.completionTokens }}</i>
+            </div>
             <div v-if="message.citations?.length" class="citation-list">
               <button
                 v-for="(citation, index) in message.citations"
