@@ -40,6 +40,7 @@ async function request<T>(path: string, init: RequestInit): Promise<T> {
       ...init,
       headers: {
         Accept: 'application/json',
+        ...(localStorage.getItem('rag_access_token') ? { Authorization: `Bearer ${localStorage.getItem('rag_access_token')}` } : {}),
         ...(init.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
         ...init.headers,
       },
@@ -52,6 +53,11 @@ async function request<T>(path: string, init: RequestInit): Promise<T> {
   }
 
   if (!response.ok) {
+    if (response.status === 401) {
+      localStorage.removeItem('rag_access_token')
+      localStorage.removeItem('rag_user')
+      window.dispatchEvent(new Event('rag-auth-expired'))
+    }
     throw new ApiError(`请求失败（HTTP ${response.status}）`, response.status)
   }
 

@@ -4,9 +4,13 @@ import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 
 import { useRagStore } from '../stores/rag'
+import { useAuthStore } from '../stores/auth'
 
 const route = useRoute()
 const store = useRagStore()
+const auth = useAuthStore()
+const emit = defineEmits<{ logout: [] }>()
+function handleCommand(command: string) { if (command === 'logout') emit('logout') }
 const title = computed(() => route.meta.title as string)
 const eyebrow = computed(() => route.meta.eyebrow as string)
 </script>
@@ -19,7 +23,10 @@ const eyebrow = computed(() => route.meta.eyebrow as string)
         <el-option v-for="item in store.knowledgeBases" :key="item.id" :label="item.name" :value="item.id" />
       </el-select>
       <el-button class="topbar-icon-button" text circle title="通知"><Bell :size="18" /><span class="notification-dot" /></el-button>
-      <span class="avatar">AW</span>
+      <el-dropdown @command="handleCommand">
+        <span class="avatar">{{ auth.user?.username?.slice(0, 2).toUpperCase() }}</span>
+        <template #dropdown><el-dropdown-menu><el-dropdown-item command="logout">退出登录</el-dropdown-item></el-dropdown-menu></template>
+      </el-dropdown>
     </div>
   </header>
 </template>

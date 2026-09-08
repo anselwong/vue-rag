@@ -18,8 +18,10 @@ export const useRagStore = defineStore('rag', () => {
     chunks: knowledgeBases.value.reduce((sum, item) => sum + item.chunkCount, 0),
   }))
 
-  async function initialize() {
-    if (knowledgeBases.value.length) return
+  async function initialize(force = false) {
+    // Pinia 在路由切换后仍保留内存。账号切换必须重新拉取，不能复用上一个
+    // 用户的知识库列表，否则即使后端已隔离，界面也会短暂展示旧数据。
+    if (!force && knowledgeBases.value.length) return
     loading.value = true
     try {
       knowledgeBases.value = await listKnowledgeBases()
@@ -35,6 +37,11 @@ export const useRagStore = defineStore('rag', () => {
     selectedKnowledgeBaseId.value = created.id
   }
 
-  return { knowledgeBases, selectedKnowledgeBaseId, selectedKnowledgeBase, loading, totals, initialize, addKnowledgeBase }
-})
+  function reset() {
+    knowledgeBases.value = []
+    selectedKnowledgeBaseId.value = ''
+    loading.value = false
+  }
 
+  return { knowledgeBases, selectedKnowledgeBaseId, selectedKnowledgeBase, loading, totals, initialize, addKnowledgeBase, reset }
+})

@@ -125,8 +125,9 @@ export async function sendChatMessage(knowledgeBaseId: string, message: string, 
 export async function streamChatMessage(knowledgeBaseId: string, message: string, sessionId: string | undefined, onEvent: (event: string, data: any) => void): Promise<void> {
   const base = import.meta.env.VITE_API_BASE_URL ?? '/api/v1'
   const response = await fetch(`${base}/knowledge-bases/${knowledgeBaseId}/chat/stream`, {
-    method: 'POST', headers: { Accept: 'text/event-stream', 'Content-Type': 'application/json' }, body: JSON.stringify({ message, session_id: sessionId }),
+    method: 'POST', headers: { Accept: 'text/event-stream', 'Content-Type': 'application/json', ...(localStorage.getItem('rag_access_token') ? { Authorization: `Bearer ${localStorage.getItem('rag_access_token')}` } : {}) }, body: JSON.stringify({ message, session_id: sessionId }),
   })
+  if (response.status === 401) { localStorage.removeItem('rag_access_token'); localStorage.removeItem('rag_user'); window.dispatchEvent(new Event('rag-auth-expired')) }
   if (!response.ok || !response.body) throw new Error(`请求失败（HTTP ${response.status}）`)
   const reader = response.body.getReader()
   const decoder = new TextDecoder()
